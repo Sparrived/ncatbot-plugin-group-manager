@@ -5,7 +5,6 @@ on:
     branches:
       - master
     paths:
-      - "__init__.py"
       - "main.py"
 
 permissions:
@@ -28,33 +27,34 @@ jobs:
       - name: Detect version change
         id: version
         run: |
-          # Create Python script to extract version
+          # Create Python script to extract version from main.py
           cat > extract_version.py << 'EOF'
           import re
           import sys
 
-          def extract_version(content):
-              match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
+          def extract_version_from_main(content):
+              # Match: version = "x.y.z"
+              match = re.search(r'^\s*version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
               return match.group(1) if match else ""
 
           if __name__ == "__main__":
-              if len(sys.argv) > 1:
+              if len(sys.argv) > 1 and sys.argv[1] == "stdin":
                   # Read from stdin
                   content = sys.stdin.read()
               else:
-                  # Read from file
-                  with open("__init__.py", "r") as f:
+                  # Read from main.py
+                  with open("main.py", "r") as f:
                       content = f.read()
-              print(extract_version(content))
+              print(extract_version_from_main(content))
           EOF
 
-          # Get the current version from __init__.py
+          # Get the current version from main.py
           NEW_VERSION=$(python extract_version.py)
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
 
           # Try to get the previous version
           if git rev-parse HEAD^ >/dev/null 2>&1; then
-            OLD_VERSION=$(git show HEAD^:__init__.py 2>/dev/null | python extract_version.py stdin || echo "")
+            OLD_VERSION=$(git show HEAD^:main.py 2>/dev/null | python extract_version.py stdin || echo "")
           else
             OLD_VERSION=""
           fi
@@ -77,9 +77,11 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
 
-          # Update version badge in README.md
+          # Update version badge in README.md (support versions with dashes like 1.0.2-post2)
           if [ -f "README.md" ]; then
-            sed -i "s/version-[0-9.]*-orange/version-${NEW_VERSION}-orange/g" README.md
+            # Escape dots and dashes for sed
+            ESCAPED_VERSION=$(echo "$NEW_VERSION" | sed 's/\./\\./g' | sed 's/-/\\-/g')
+            sed -i "s/version-[0-9.a-zA-Z_-]*-orange/version-${NEW_VERSION}-orange/g" README.md
             
             # Check if README was actually modified
             if git diff --quiet README.md; then
