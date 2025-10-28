@@ -19,7 +19,7 @@ from .utils import require_subscription, require_group_admin
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.6"
+    version = "1.0.6-post1"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -299,12 +299,15 @@ class GroupManager(NcatBotPlugin):
     async def cmd_help(self, event: GroupMessageEvent, command: str = ""):
         """获取群管理帮助信息"""
         help_generator = HelpGenerator()
-        if not command:
-            help_message = help_generator.generate_group_help(self.gm_group)
-        else:
-            command_obj = self.gm_group.commands.get(command, None) # type: ignore
-            if not command_obj:
-                await event.reply("未找到该指令喵，请确认指令名称是否正确喵~")
-                return
-            help_message = help_generator.generate_command_help(command_obj)
-        await event.reply(help_message)
+        try:
+            if not command:
+                help_message = help_generator.generate_group_help(self.gm_group)
+            else:
+                command_obj = self.gm_group.commands.get(command, None) # type: ignore
+                if not command_obj:
+                    await event.reply("未找到该指令喵，请确认指令名称是否正确喵~")
+                    return
+                help_message = help_generator.generate_command_help(command_obj)
+            await event.reply(help_message)
+        except Exception as e:
+            await event.reply(f"生成帮助信息时出错喵：\n{e}")
