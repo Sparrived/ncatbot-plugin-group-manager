@@ -15,10 +15,12 @@ from typing import Optional
 from .utils import require_subscription
 
 
+__version__ = "1.0.1"
+
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.0"
+    version = __version__
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -174,7 +176,7 @@ class GroupManager(NcatBotPlugin):
 
     @admin_group_filter
     @gm_group.command("mute", description="禁言群成员")
-    @param("duration", default=60, help="禁言时长（分钟）")
+    @param("duration", default=10, help="禁言时长（分钟）")
     @require_subscription
     async def cmd_mute(self, event: GroupMessageEvent, user_id: str, duration: int):
         """禁言群成员"""
@@ -190,9 +192,29 @@ class GroupManager(NcatBotPlugin):
             duration=duration * 60
         )
         message_array = MessageArray()
-        message_array.add_text(f"已禁言 ")
+        message_array.add_text(f" 已禁言 ")
         message_array.add_at(user_id)
         message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
+        await event.reply(rtf=message_array)
+
+    
+    @admin_group_filter
+    @gm_group.command("prefix", description="设置群成员头衔")
+    @require_subscription
+    async def cmd_prefix(self, event: GroupMessageEvent, user_id: str, prefix: str):
+        """设置群成员头衔"""
+        if user_id.startswith("At"):
+            user_id = user_id.split("=")[1].split('"')[1]
+        
+        await self.api.set_group_special_title(
+            group_id=event.group_id, # type: ignore
+            user_id=user_id,
+            special_title=prefix
+        )
+        message_array = MessageArray()
+        message_array.add_text(f" 鉴于 ")
+        message_array.add_at(user_id)
+        message_array.add_text(f" 最近的表现，为其授予 '{prefix}' 的头衔喵！")
         await event.reply(rtf=message_array)
 
 
