@@ -197,7 +197,7 @@ class GroupManager(NcatBotPlugin):
             user_id=event.self_id
         )
         if self_info.role == "admin" and user_info.role == "admin":
-            message_array.add_text(f"我和 ")
+            message_array.add_text(f" 我和 ")
             message_array.add_at(user_id)
             message_array.add_text(f" 同级，不能互相禁言喵~")
             await event.reply(rtf=message_array)
@@ -212,9 +212,8 @@ class GroupManager(NcatBotPlugin):
             message_array.add_at(user_id)
             message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
             await event.reply(rtf=message_array)
-        except Exception as e:
-            self.log.error(f"禁言用户 {user_id} 失败，错误信息：{e}")
-            message_array.add_text(f"禁言用户 ")
+        except Exception:
+            message_array.add_text(f" 禁言用户 ")
             message_array.add_at(user_id)
             message_array.add_text(f" 失败了，他的官似乎比我大喵……")
             await event.reply(rtf=message_array)
