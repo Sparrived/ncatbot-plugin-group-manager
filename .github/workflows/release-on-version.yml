@@ -77,8 +77,9 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
 
-          # Replace dashes with dots for README badge (e.g., 1.0.2-post2 -> 1.0.2.post2)
-          BADGE_VERSION=$(echo "$NEW_VERSION" | sed 's/-/./g')
+          # Replace single dash with double dash for shields.io badge format
+          # This ensures we don't double-replace already escaped dashes
+          BADGE_VERSION=$(echo "$NEW_VERSION" | sed 's/-/--/g')
 
           # Update version badge in README.md
           if [ -f "README.md" ]; then
