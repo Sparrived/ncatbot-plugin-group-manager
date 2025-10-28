@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - "__init__.py"
+      - "main.py"
 
 permissions:
   contents: write
@@ -70,6 +71,28 @@ jobs:
 
           # Cleanup
           rm -f extract_version.py
+
+      - name: Update README version badge
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          # Update version badge in README.md
+          if [ -f "README.md" ]; then
+            sed -i "s/version-[0-9.]*-orange/version-${NEW_VERSION}-orange/g" README.md
+            
+            # Check if README was actually modified
+            if git diff --quiet README.md; then
+              echo "README.md version badge is already up to date"
+            else
+              echo "Updated README.md version badge to ${NEW_VERSION}"
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add README.md
+              git commit -m "docs: update version badge to ${NEW_VERSION}"
+              git push
+            fi
+          fi
 
       - name: Prepare changelog
         if: steps.version.outputs.changed == 'true'
