@@ -19,7 +19,7 @@ from .utils import require_subscription
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.2-post3"
+    version = "1.0.2-post4"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)

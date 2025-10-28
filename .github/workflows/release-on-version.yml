@@ -77,21 +77,22 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
 
-          # Update version badge in README.md (support versions with dashes like 1.0.2-post2)
+          # Replace dashes with dots for README badge (e.g., 1.0.2-post2 -> 1.0.2.post2)
+          BADGE_VERSION=$(echo "$NEW_VERSION" | sed 's/-/./g')
+
+          # Update version badge in README.md
           if [ -f "README.md" ]; then
-            # Escape dots and dashes for sed
-            ESCAPED_VERSION=$(echo "$NEW_VERSION" | sed 's/\./\\./g' | sed 's/-/\\-/g')
-            sed -i "s/version-[0-9.a-zA-Z_-]*-orange/version-${NEW_VERSION}-orange/g" README.md
+            sed -i "s/version-[0-9.a-zA-Z_-]*-orange/version-${BADGE_VERSION}-orange/g" README.md
             
             # Check if README was actually modified
             if git diff --quiet README.md; then
               echo "README.md version badge is already up to date"
             else
-              echo "Updated README.md version badge to ${NEW_VERSION}"
+              echo "Updated README.md version badge to ${BADGE_VERSION}"
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
               git add README.md
-              git commit -m "docs: update version badge to ${NEW_VERSION}"
+              git commit -m "docs: update version badge to ${BADGE_VERSION}"
               git push
             fi
           fi
