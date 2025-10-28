@@ -1,4 +1,4 @@
-from .main import GroupManager, __version__
+from .main import GroupManager
 
 __all__ = ["GroupManager"]
 
