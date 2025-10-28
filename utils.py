@@ -1,6 +1,6 @@
 from functools import wraps
 from ncatbot.plugin_system import NcatBotPlugin
-from typing import Callable
+from typing import Callable, Literal
 
 
 
@@ -22,3 +22,27 @@ def require_subscription(func: Callable):
         return await func(self, event, *args, **kwargs)
 
     return wrapper
+
+
+def require_group_admin(role: Literal["admin", "owner"] = "admin", reply_message: str = "我不是该群的管理员，不能做这些喵……"):
+    """群组管理员判断装饰器函数"""
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(self: NcatBotPlugin, event, *args, **kwargs):
+            group_id = getattr(event, "group_id", None)
+            self_id = getattr(event, "self_id", None)
+            if group_id is None or self_id is None:
+                return await func(self, event, *args, **kwargs)
+            self_info = await self.api.get_group_member_info(
+                group_id=group_id, 
+                user_id=self_id
+            )
+            if self_info.role == "owner":
+                return await func(self, event, *args, **kwargs)
+            if self_info.role != role:
+                await event.reply(reply_message)
+                return
+            return await func(self, event, *args, **kwargs)
+
+        return wrapper
+    return decorator

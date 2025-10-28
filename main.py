@@ -12,14 +12,14 @@ from ncatbot.plugin_system.builtin_plugin.unified_registry.command_system.regist
 from ncatbot.utils import get_log
 from ncatbot.core import RequestEvent, NoticeEvent, GroupMessageEvent, MessageArray
 from typing import Optional
-from .utils import require_subscription
+from .utils import require_subscription, require_group_admin
 
 
 
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.3"
+    version = "1.0.4"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -75,8 +75,8 @@ class GroupManager(NcatBotPlugin):
         )
         # 构造消息
         message_array = MessageArray()
-        message_array.add_text(f"有新人加入啦！欢迎你喵")
         message_array.add_at(user_info.user_id)
+        message_array.add_text(f"有新人加入啦！欢迎你喵！")
         # 邀请额外添加消息
         if event.sub_type == "invite":
             operator_info = await self.api.get_group_member_info(
@@ -156,6 +156,7 @@ class GroupManager(NcatBotPlugin):
     @gm_group.command("approve", description="同意/拒绝申请入群")
     @option("d", "deny", "拒绝入群申请") # -d --deny
     @require_subscription
+    @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能处理入群申请喵……")
     async def cmd_approve(self, event: GroupMessageEvent, user_id: str, deny: bool = False):
         """同意/拒绝申请入群"""
         request_event: Optional[RequestEvent] = self._twice_requests.get(user_id, None)
@@ -177,6 +178,7 @@ class GroupManager(NcatBotPlugin):
     @gm_group.command("mute", description="禁言群成员")
     @param("duration", default=10, help="禁言时长（分钟）")
     @require_subscription
+    @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能禁言成员喵……")
     async def cmd_mute(self, event: GroupMessageEvent, user_id: str, duration: int):
         """禁言群成员"""
         if user_id.startswith("At"):
@@ -185,30 +187,37 @@ class GroupManager(NcatBotPlugin):
         if duration < 1 or duration > 1440:  # 最多24小时
             await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
             return
-        await self.api.set_group_ban(
-            group_id=event.group_id, # type: ignore
-            user_id=user_id,
-            duration=duration * 60
-        )
         message_array = MessageArray()
-        message_array.add_text(f" 已禁言 ")
-        message_array.add_at(user_id)
-        message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
-        await event.reply(rtf=message_array)
+        try:
+            await self.api.set_group_ban(
+                group_id=event.group_id, # type: ignore
+                user_id=user_id,
+                duration=duration * 60
+            )
+            message_array.add_text(f" 已禁言 ")
+            message_array.add_at(user_id)
+            message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
+            await event.reply(rtf=message_array)
+        except Exception as e:
+            self.log.error(f"禁言用户 {user_id} 失败，错误信息：{e}")
+            message_array.add_text(f"禁言用户 ")
+            message_array.add_at(user_id)
+            message_array.add_text(f" 失败了，他的官似乎比我大喵……")
+            await event.reply(rtf=message_array)
 
     
     @admin_group_filter
-    @gm_group.command("prefix", description="设置群成员头衔")
+    @gm_group.command("prefix", description="设置群成员头衔（仅Bot为群主时可用）")
+    @param("prefix", default="", help="群成员头衔内容")
     @option("c", "clear", "清除群成员头衔")  # -c --clear
     @require_subscription
+    @require_group_admin(role="owner", reply_message="我不是该群的群主，不能设置成员头衔喵……")
     async def cmd_prefix(self, event: GroupMessageEvent, user_id: str, prefix: str, clear: bool = False):
         """设置群成员头衔"""
         if user_id.startswith("At"):
             user_id = user_id.split("=")[1].split('"')[1]
-
         if clear:
             prefix = ""
-
         await self.api.set_group_special_title(
             group_id=event.group_id, # type: ignore
             user_id=user_id,
@@ -220,7 +229,9 @@ class GroupManager(NcatBotPlugin):
         if prefix:
             message_array.add_text(f" 最近的表现，为其授予 '{prefix}' 的头衔喵！")
         else:
-            message_array.add_text(f" 最近的表现，已清除 {user_id} 的头衔喵！")
+            message_array.add_text(f" 最近的表现，已清除 ")
+            message_array.add_at(user_id)
+            message_array.add_text(f" 的头衔喵！")
         await event.reply(rtf=message_array)
 
 
