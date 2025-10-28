@@ -28,12 +28,12 @@ jobs:
         id: version
         run: |
           # Get the current version from __init__.py
-          NEW_VERSION=$(python -c "import re; content = open('__init__.py').read(); print(re.search(r\"__version__\s*=\s*['\\\"]([^'\\\"]+)['\\\"]', content).group(1) if re.search(r\"__version__\s*=\s*['\\\"]([^'\\\"]+)['\\\"]', content) else '')")
+          NEW_VERSION=$(python -c "import re; content = open('__init__.py').read(); match = re.search(r'__version__\s*=\s*['\''\"'\'']([^'\''\"'\'']+)['\''\"'\'']', content); print(match.group(1) if match else '')")
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
 
           # Try to get the previous version
           if git rev-parse HEAD^ >/dev/null 2>&1; then
-            OLD_VERSION=$(git show HEAD^:__init__.py 2>/dev/null | python -c "import sys, re; content = sys.stdin.read(); match = re.search(r\"__version__\s*=\s*['\\\"]([^'\\\"]+)['\\\"]', content); print(match.group(1) if match else '')" || echo "")
+            OLD_VERSION=$(git show HEAD^:__init__.py 2>/dev/null | python -c "import sys, re; content = sys.stdin.read(); match = re.search(r'__version__\s*=\s*['\''\"'\'']([^'\''\"'\'']+)['\''\"'\'']', content); print(match.group(1) if match else '')" || echo "")
           else
             OLD_VERSION=""
           fi
