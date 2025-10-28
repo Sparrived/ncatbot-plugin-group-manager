@@ -19,7 +19,7 @@ from .utils import require_subscription, require_group_admin
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.4"
+    version = "1.0.4-post1"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -188,6 +188,20 @@ class GroupManager(NcatBotPlugin):
             await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
             return
         message_array = MessageArray()
+        user_info = await self.api.get_group_member_info(
+            group_id=event.group_id, # type: ignore
+            user_id=user_id
+        )
+        self_info = await self.api.get_group_member_info(
+            group_id=event.group_id, # type: ignore
+            user_id=event.self_id
+        )
+        if self_info.role == "admin" and user_info.role == "admin":
+            message_array.add_text(f"我和 ")
+            message_array.add_at(user_id)
+            message_array.add_text(f" 同级，不能互相禁言喵~")
+            await event.reply(rtf=message_array)
+            return
         try:
             await self.api.set_group_ban(
                 group_id=event.group_id, # type: ignore
