@@ -19,7 +19,7 @@ from .utils import require_subscription
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.2-post4"
+    version = "1.0.3"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -199,12 +199,16 @@ class GroupManager(NcatBotPlugin):
     
     @admin_group_filter
     @gm_group.command("prefix", description="设置群成员头衔")
+    @option("c", "clear", "清除群成员头衔")  # -c --clear
     @require_subscription
-    async def cmd_prefix(self, event: GroupMessageEvent, user_id: str, prefix: str):
+    async def cmd_prefix(self, event: GroupMessageEvent, user_id: str, prefix: str, clear: bool = False):
         """设置群成员头衔"""
         if user_id.startswith("At"):
             user_id = user_id.split("=")[1].split('"')[1]
-        
+
+        if clear:
+            prefix = ""
+
         await self.api.set_group_special_title(
             group_id=event.group_id, # type: ignore
             user_id=user_id,
@@ -213,7 +217,10 @@ class GroupManager(NcatBotPlugin):
         message_array = MessageArray()
         message_array.add_text(f" 鉴于 ")
         message_array.add_at(user_id)
-        message_array.add_text(f" 最近的表现，为其授予 '{prefix}' 的头衔喵！")
+        if prefix:
+            message_array.add_text(f" 最近的表现，为其授予 '{prefix}' 的头衔喵！")
+        else:
+            message_array.add_text(f" 最近的表现，已清除 {user_id} 的头衔喵！")
         await event.reply(rtf=message_array)
 
 
