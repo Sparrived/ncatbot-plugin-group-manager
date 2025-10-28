@@ -1,8 +1,14 @@
 <div align="center">
-# ✨ncatbot - GroupManager 插件✨
+<h1>✨ncatbot - GroupManager 插件✨</h1>
+
 一个基于 NcatBot 的群组管理插件，提供自动审核、入群欢迎、离群提醒等能力。
 
-[![ncatbot](https://socialify.git.ci/liyihao1110/NcatBot/image?custom_description=ncatbot+%EF%BC%8C%E5%9F%BA%E4%BA%8E+OneBot11%E5%8D%8F%E8%AE%AE+%E7%9A%84+QQ+%E6%9C%BA%E5%99%A8%E4%BA%BA+Python+SDK%EF%BC%8C%E5%BF%AB%E9%80%9F%E5%BC%80%E5%8F%91%EF%BC%8C%E8%BD%BB%E6%9D%BE%E9%83%A8%E7%BD%B2%E3%80%82&description=1&font=Jost&forks=1&issues=1&logo=https%3A%2F%2Fimg.remit.ee%2Fapi%2Ffile%2FAgACAgUAAyEGAASHRsPbAAO9Z_FYKczZ5dly9IKmC93J_sF7qRUAAmXEMRtA2ohX1eSKajqfARABAAMCAAN5AAM2BA.jpg&pattern=Signal&pulls=1&stargazers=1&theme=Auto)](https://github.com/liyihao1110/ncatbot)
+
+<a><img src="https://img.shields.io/badge/License-MiT_License-green.svg"></a>
+<a><img src="https://img.shields.io/badge/ncatbot->=4.2.9-blue.svg"></a>
+
+
+</p>
 
 </div>
 
