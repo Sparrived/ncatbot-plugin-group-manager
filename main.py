@@ -19,7 +19,7 @@ from .utils import require_subscription, require_group_admin
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.5"
+    version = "1.0.6"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -189,14 +189,19 @@ class GroupManager(NcatBotPlugin):
             if duration < 1 or duration > 1440:  # 最多24小时
                 await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
                 return
-        user_info = await self.api.get_group_member_info(
-            group_id=event.group_id, # type: ignore
-            user_id=user_id
-        )
         self_info = await self.api.get_group_member_info(
             group_id=event.group_id, # type: ignore
             user_id=event.self_id
         )
+        try:
+            user_info = await self.api.get_group_member_info(
+                group_id=event.group_id, # type: ignore
+                user_id=user_id
+            )
+        except Exception as e:
+            message_array.add_text(f" 执行好像出了点问题喵\n：{e}")
+            await event.reply(rtf=message_array)
+            return
         if self_info.role == "admin" and user_info.role == "admin":
             message_array.add_text(f" 我和 ")
             message_array.add_at(user_id)
@@ -242,20 +247,23 @@ class GroupManager(NcatBotPlugin):
             user_id = user_id.split("=")[1].split('"')[1]
         if clear:
             prefix = ""
-        await self.api.set_group_special_title(
-            group_id=event.group_id, # type: ignore
-            user_id=user_id,
-            special_title=prefix
-        )
         message_array = MessageArray()
-        message_array.add_text(f" 鉴于 ")
-        message_array.add_at(user_id)
-        if prefix:
-            message_array.add_text(f" 最近的表现，为其授予 '{prefix}' 的头衔喵！")
-        else:
-            message_array.add_text(f" 最近的表现，已清除 ")
+        try:
+            await self.api.set_group_special_title(
+                group_id=event.group_id, # type: ignore
+                user_id=user_id,
+                special_title=prefix
+            )
+            message_array.add_text(f" 鉴于 ")
             message_array.add_at(user_id)
-            message_array.add_text(f" 的头衔喵！")
+            if prefix:
+                message_array.add_text(f" 最近的表现，为其授予 '{prefix}' 的头衔喵！")
+            else:
+                message_array.add_text(f" 最近的表现，已清除 ")
+                message_array.add_at(user_id)
+                message_array.add_text(f" 的头衔喵！")
+        except Exception as e:
+            message_array.add_text(f" 执行好像出了点问题喵\n：{e}")
         await event.reply(rtf=message_array)
 
 
@@ -286,9 +294,17 @@ class GroupManager(NcatBotPlugin):
 
     @admin_group_filter
     @gm_group.command("help", description="获取群管理帮助信息")
+    @param("command", default="", help="指令名称", required=False)
     @require_subscription
-    async def cmd_help(self, event: GroupMessageEvent):
+    async def cmd_help(self, event: GroupMessageEvent, command: str = ""):
         """获取群管理帮助信息"""
         help_generator = HelpGenerator()
-        help_message = help_generator.generate_group_help(self.gm_group)
+        if not command:
+            help_message = help_generator.generate_group_help(self.gm_group)
+        else:
+            command_obj = self.gm_group.commands.get(command, None) # type: ignore
+            if not command_obj:
+                await event.reply("未找到该指令喵，请确认指令名称是否正确喵~")
+                return
+            help_message = help_generator.generate_command_help(command_obj)
         await event.reply(help_message)
