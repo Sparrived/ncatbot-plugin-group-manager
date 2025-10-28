@@ -115,9 +115,9 @@ jobs:
 
           # Generate changelog
           if [ -n "$PREV_REF" ]; then
-            git log "$PREV_REF"..HEAD --pretty=format:'- %h %s (%an)' --no-merges > RELEASE_NOTES.md
+            git log "$PREV_REF"..HEAD --pretty=format:'- %h %s (@%an)' --no-merges > RELEASE_NOTES.md
           else
-            git log --pretty=format:'- %h %s (%an)' --no-merges > RELEASE_NOTES.md
+            git log --pretty=format:'- %h %s (@%an)' --no-merges > RELEASE_NOTES.md
           fi
 
           # Add default message if no changes

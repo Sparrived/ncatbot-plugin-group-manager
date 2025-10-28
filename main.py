@@ -19,7 +19,7 @@ from .utils import require_subscription, require_group_admin
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.4-post2"
+    version = "1.0.5"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -176,18 +176,19 @@ class GroupManager(NcatBotPlugin):
 
     @admin_group_filter
     @gm_group.command("mute", description="禁言群成员")
-    @param("duration", default=10, help="禁言时长（分钟）")
+    @param("duration", default=10, help="禁言时长（分钟）", required=False)
+    @option("u", "undo", help="解除禁言")  # -u --undo
     @require_subscription
     @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能禁言成员喵……")
-    async def cmd_mute(self, event: GroupMessageEvent, user_id: str, duration: int):
+    async def cmd_mute(self, event: GroupMessageEvent, user_id: str, duration: int = 10, undo: bool = False):
         """禁言群成员"""
         if user_id.startswith("At"):
             user_id = user_id.split("=")[1].split('"')[1]
-        
-        if duration < 1 or duration > 1440:  # 最多24小时
-            await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
-            return
         message_array = MessageArray()
+        if not undo:
+            if duration < 1 or duration > 1440:  # 最多24小时
+                await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
+                return
         user_info = await self.api.get_group_member_info(
             group_id=event.group_id, # type: ignore
             user_id=user_id
@@ -203,14 +204,24 @@ class GroupManager(NcatBotPlugin):
             await event.reply(rtf=message_array)
             return
         try:
-            await self.api.set_group_ban(
-                group_id=event.group_id, # type: ignore
-                user_id=user_id,
-                duration=duration * 60
-            )
-            message_array.add_text(f" 已禁言 ")
-            message_array.add_at(user_id)
-            message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
+            if not undo:
+                await self.api.set_group_ban(
+                    group_id=event.group_id, # type: ignore
+                    user_id=user_id,
+                    duration=duration * 60
+                )
+                message_array.add_text(f" 已禁言 ")
+                message_array.add_at(user_id)
+                message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
+            else:
+                await self.api.set_group_ban(
+                    group_id=event.group_id, # type: ignore
+                    user_id=user_id,
+                    duration=0
+                )
+                message_array.add_text(f" 已解除 ")
+                message_array.add_at(user_id)
+                message_array.add_text(f" 的禁言喵。")
             await event.reply(rtf=message_array)
         except Exception:
             message_array.add_text(f" 禁言用户 ")
@@ -221,7 +232,7 @@ class GroupManager(NcatBotPlugin):
     
     @admin_group_filter
     @gm_group.command("prefix", description="设置群成员头衔（仅Bot为群主时可用）")
-    @param("prefix", default="", help="群成员头衔内容")
+    @param("prefix", default="头衔", help="群成员头衔内容", required=False)
     @option("c", "clear", "清除群成员头衔")  # -c --clear
     @require_subscription
     @require_group_admin(role="owner", reply_message="我不是该群的群主，不能设置成员头衔喵……")
