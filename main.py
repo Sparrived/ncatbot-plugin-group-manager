@@ -15,12 +15,11 @@ from typing import Optional
 from .utils import require_subscription
 
 
-__version__ = "1.0.1"
 
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = __version__
+    version = "1.0.2"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
