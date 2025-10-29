@@ -13,13 +13,14 @@ from ncatbot.utils import get_log
 from ncatbot.core import RequestEvent, NoticeEvent, GroupMessageEvent, MessageArray
 from typing import Optional
 from .utils import require_subscription, require_group_admin, at_check_support
-
+from .commands import *
 
 
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.8"
+    version = "1.1.0"
+    author = "Sparrived"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -182,73 +183,53 @@ class GroupManager(NcatBotPlugin):
                 approve=False,
                 reason="管理员拒绝了你的加群申请。"
                 )
-            await event.reply(f"已拒绝 {user_id} 的入群申请。")
+            await event.reply(f"已拒绝 {user_id} 的入群申请喵。")
             return
         await request_event.approve(approve=True)
     
 
     @admin_group_filter
     @gm_group.command("mute", description="禁言群成员")
+    @param("user_id", help="要禁言的用户ID", required=False)
     @param("duration", default=10, help="禁言时长（分钟）", required=False)
     @option("u", "undo", help="解除禁言")  # -u --undo
+    @option("l", "list_user", help="列出目前被禁言的用户")  # -l --list
     @require_subscription
     @at_check_support
-    @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能禁言成员喵……")
-    async def cmd_mute(self, event: GroupMessageEvent, user_id: str, duration: int = 10, undo: bool = False):
+    @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能禁言喵……")
+    async def cmd_mute(
+        self,
+        event: GroupMessageEvent, 
+        user_id: str = "", 
+        duration: float = -1, 
+        undo: bool = False, 
+        list_user: bool = False
+    ):
         """禁言群成员"""
-        message_array = MessageArray()
-        if not undo:
-            if duration < 1 or duration > 1440:  # 最多24小时
-                await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
-                return
-        self_info = await self.api.get_group_member_info(
-            group_id=event.group_id, # type: ignore
-            user_id=event.self_id
-        )
-        try:
-            user_info = await self.api.get_group_member_info(
-                group_id=event.group_id, # type: ignore
-                user_id=user_id
-            )
-        except Exception as e:
-            message_array.add_text(f" 执行好像出了点问题，检查一下指令格式喵：\n /gm mute <user_id> [duration] [-u]\n错误信息：\n：{e}")
-            await event.reply(rtf=message_array)
+        # list user
+        if list_user and await mute.list_user(api=self.api, event=event):
             return
-        if self_info.role == "admin" and user_info.role == "admin":
-            message_array.add_text(f" 我和 ")
-            message_array.add_at(user_id)
-            message_array.add_text(f" 同级，不能互相禁言喵~")
-            await event.reply(rtf=message_array)
+        if undo and await mute.unmute(api=self.api, event=event, user_id=user_id):
             return
-        try:
-            if not undo:
-                await self.api.set_group_ban(
-                    group_id=event.group_id, # type: ignore
-                    user_id=user_id,
-                    duration=duration * 60
-                )
-                message_array.add_text(f" 已禁言 ")
-                message_array.add_at(user_id)
-                message_array.add_text(f" {duration} 分钟，注意你的言行喵！")
-            else:
-                await self.api.set_group_ban(
-                    group_id=event.group_id, # type: ignore
-                    user_id=user_id,
-                    duration=0
-                )
-                message_array.add_text(f" 已解除 ")
-                message_array.add_at(user_id)
-                message_array.add_text(f" 的禁言喵。")
-            await event.reply(rtf=message_array)
-        except Exception:
-            message_array.add_text(f" 禁言用户 ")
-            message_array.add_at(user_id)
-            message_array.add_text(f" 失败了，他的官似乎比我大喵……")
-            await event.reply(rtf=message_array)
+        if duration < 1 or duration > 1440:  # 最多24小时
+            await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
+            return
+        await mute.mute_member(api=self.api, event=event, user_id=user_id, duration=duration)
 
-    
+
+
     @admin_group_filter
-    @gm_group.command("prefix", description="设置群成员头衔（仅Bot为群主时可用）")
+    @gm_group.command("mute_all", description="全体禁言")
+    @param("duration", default=-1, help="禁言时长（分钟）", required=False)
+    @require_subscription
+    @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能全体禁言喵……")
+    async def cmd_mute_all(self, event: GroupMessageEvent, duration: float = -1):
+        """全体禁言"""
+        await mute.mute_all(self, event, duration)
+
+
+    @admin_group_filter
+    @gm_group.command("prefix", description="设置群成员头衔（仅Bot为群主）")
     @param("prefix", default="头衔", help="群成员头衔内容", required=False)
     @option("c", "clear", "清除群成员头衔")  # -c --clear
     @require_subscription
@@ -322,15 +303,55 @@ class GroupManager(NcatBotPlugin):
     @gm_group.command("custom_level", description="设置自定义自动批准QQ等级")
     @param("level", help="自定义QQ等级", required=False)
     @option("r", "reset", "重置为全局默认QQ等级")  # -r --reset
+    @option("s", "show", "显示当前群组的自定义QQ等级")  # -s --show
     @require_subscription
-    async def cmd_custom_level(self, event: GroupMessageEvent, level: int = 5, reset: bool = False):
+    async def cmd_custom_level(self, event: GroupMessageEvent, level: int = 5, reset: bool = False, show: bool = False):
         """设置自定义自动批准QQ等级"""
         if reset:
             self.config["auto_approve"]["custom_qq_level"].pop(event.group_id, None)
             await event.reply("已将本群组的自定义自动批准QQ等级重置为全局默认值喵。")
+        elif show:
+            custom_level = self.config["auto_approve"]["custom_qq_level"].get(event.group_id, None)
+            if custom_level is None:
+                level = self.config["auto_approve"]["min_qq_level"]
+                await event.reply(f"本群组未设置自定义自动批准QQ等级，当前使用全局默认值 {level} 喵。")
+                return
+            await event.reply(f"当前群组的自定义自动批准QQ等级为 {custom_level} 喵。")
         else:
             self.config["auto_approve"]["custom_qq_level"][event.group_id] = level
             await event.reply(f"已将本群组的自定义自动批准QQ等级设置为 {level} 喵。")
+
+    
+
+    @admin_group_filter
+    @gm_group.command("admin", description="设置群管理员（仅限Bot为群主）")
+    @param("user_id", help="用户ID", required=True)
+    @require_subscription
+    @at_check_support
+    @require_group_admin(role="owner", reply_message="我不是群主，不能设置管理员喵……")
+    async def cmd_admin(self, event: GroupMessageEvent, user_id: str):
+        """设置群管理员（仅限Bot为群主）"""
+        enable = True
+        message_array = MessageArray()
+        try:
+            user_info = await self.api.get_group_member_info(
+                group_id=event.group_id,
+                user_id=user_id
+            )
+            if user_info.role == "admin":
+                enable = False
+            await self.api.set_group_admin(group_id=event.group_id, user_id=user_id, enable=enable)
+            if enable:
+                message_array.add_text(f" 恭喜 ")
+                message_array.add_at(user_id)
+                message_array.add_text(f" 大人高升喵！")
+            else:
+                message_array.add_text(f" 怎么回事喵？")
+                message_array.add_at(user_id)
+                message_array.add_text(f" 被革职了喵！")
+            await event.reply(rtf=message_array)
+        except Exception as e:
+            await event.reply(f"设置管理员时出错了，检查一下指令格式喵：\n /gm admin <user_id>\n错误信息：\n{e}")
 
 
     # ======== 订阅功能 ========
