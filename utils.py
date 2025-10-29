@@ -51,11 +51,13 @@ def at_check_support(func: Callable):
     """支持 at 功能的装饰器函数"""
     @wraps(func)
     async def wrapper(self: NcatBotPlugin, event, *args, **kwargs):
-        user_id = kwargs.get("user_id", None)
-        if not user_id or not isinstance(user_id, str):
-            return await func(self, event, *args, **kwargs)
-        if user_id.startswith("At"):
-            user_id = user_id.split("=")[1].split('"')[1]
-            kwargs["user_id"] = user_id
+        for i, arg in enumerate(args):
+            if not isinstance(arg, str):
+                continue
+            if arg.startswith("At"):
+                user_id = arg.split("=")[1].split('"')[1]
+                args = list(args)
+                args[i] = user_id
+                args = tuple(args)
         return await func(self, event, *args, **kwargs)
     return wrapper

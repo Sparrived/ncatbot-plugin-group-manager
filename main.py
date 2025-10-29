@@ -19,7 +19,7 @@ from .utils import require_subscription, require_group_admin, at_check_support
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.7"
+    version = "1.0.8"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -284,9 +284,24 @@ class GroupManager(NcatBotPlugin):
     @option("b", "ban", "踢出并禁止再次加入")  # -b --ban
     @require_subscription
     @at_check_support
+    @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能踢人喵……")
     async def cmd_kick(self, event: GroupMessageEvent, user_id: str, ban: bool = False):
         """踢出群成员"""
         message_array = MessageArray()
+        user_info = await self.api.get_group_member_info(
+            group_id=event.group_id, # type: ignore
+            user_id=user_id
+        )
+        self_info = await self.api.get_group_member_info(
+            group_id=event.group_id, # type: ignore
+            user_id=event.self_id
+        )
+        if user_info.role == "owner":
+            await event.reply("我不能踢出群主喵……")
+            return
+        if user_info.role == self_info.role:
+            await event.reply("我不能踢出和我同级的群员喵……")
+            return
         try:
             await self.api.set_group_kick(
                 group_id=event.group_id, # type: ignore
