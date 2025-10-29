@@ -12,14 +12,14 @@ from ncatbot.plugin_system.builtin_plugin.unified_registry.command_system.regist
 from ncatbot.utils import get_log
 from ncatbot.core import RequestEvent, NoticeEvent, GroupMessageEvent, MessageArray
 from typing import Optional
-from .utils import require_subscription, require_group_admin
+from .utils import require_subscription, require_group_admin, at_check_support
 
 
 
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.0.6-post1"
+    version = "1.0.7"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
     log = get_log(name)
@@ -31,6 +31,7 @@ class GroupManager(NcatBotPlugin):
             {
                 "enabled": True,
                 "min_qq_level": 5,
+                "custom_qq_level": {"123456789": 100}
             },
             "自动批准入群请求的配置项",
             dict
@@ -73,6 +74,9 @@ class GroupManager(NcatBotPlugin):
             group_id=event.group_id, # type: ignore
             user_id=event.user_id # type: ignore
         )
+        if event.user_id in self._twice_requests.keys():
+            # 如果用户在二次请求列表中，移除该记录
+            self._twice_requests.pop(event.user_id)
         # 构造消息
         message_array = MessageArray()
         message_array.add_at(user_info.user_id)
@@ -110,6 +114,9 @@ class GroupManager(NcatBotPlugin):
                 group_id=event.group_id, # type: ignore
                 user_id=event.operator_id # type: ignore
             )
+            if operator_info.user_id == event.self_id:
+                # 不处理由指令导致的踢出
+                return
             message_array.add_text(f"{user_info['nickname']} 被 ")
             message_array.add_at(operator_info.user_id)
             message_array.add_text(f" 无情地踢出了群组喵?!发生什么事了喵？")
@@ -133,13 +140,17 @@ class GroupManager(NcatBotPlugin):
             self._twice_requests[event.user_id] = event
             await self.api.post_group_msg(
                 group_id=event.group_id, # type: ignore
-                text=f"用户 {user_info['nickname']} 多次发送入群请求，请其他管理员注意查看喵~管理员可以直接使用 /gm approve {event.user_id} <-d> 来处理该请求喵( -d 是拒绝喵)。"
+                text=f"用户 {user_info['nickname']} 多次发送入群请求，请其他管理员注意查看喵~管理员可以直接使用 /gm approve {event.user_id} [-d] 来处理该请求喵( -d 是拒绝喵)。"
             )
             return
-        if user_info['qqLevel'] <= self.config["auto_approve"]["min_qq_level"]:
+        if event.group_id in self.config["auto_approve"]["custom_qq_level"].keys():
+            min_qq_level = self.config["auto_approve"]["custom_qq_level"][event.group_id]
+        else:
+            min_qq_level = self.config["auto_approve"]["min_qq_level"]
+        if user_info['qqLevel'] <= min_qq_level:
             await event.approve(
                 approve=False,
-                reason="疑似小号，如果是真人请联系管理员审核，或再次提交入群申请。"
+                reason="疑似小号，如果是真人请联系其它群管理员审核，或再次提交入群申请。"
             )
             self._twice_requests[event.user_id] = event
             self.log.info(f"拒绝了 {user_info['nickname']} 的入群请求，理由：QQ等级不足。")
@@ -148,6 +159,8 @@ class GroupManager(NcatBotPlugin):
                 approve=True
             )
             self.log.info(f"通过了 {user_info['nickname']} 的入群请求。")
+
+
 
     # ======== 注册指令 ========
     gm_group = command_registry.group("gm", "群管理根级命令")
@@ -179,11 +192,10 @@ class GroupManager(NcatBotPlugin):
     @param("duration", default=10, help="禁言时长（分钟）", required=False)
     @option("u", "undo", help="解除禁言")  # -u --undo
     @require_subscription
+    @at_check_support
     @require_group_admin(role="admin", reply_message="我不是该群的管理员，不能禁言成员喵……")
     async def cmd_mute(self, event: GroupMessageEvent, user_id: str, duration: int = 10, undo: bool = False):
         """禁言群成员"""
-        if user_id.startswith("At"):
-            user_id = user_id.split("=")[1].split('"')[1]
         message_array = MessageArray()
         if not undo:
             if duration < 1 or duration > 1440:  # 最多24小时
@@ -199,7 +211,7 @@ class GroupManager(NcatBotPlugin):
                 user_id=user_id
             )
         except Exception as e:
-            message_array.add_text(f" 执行好像出了点问题喵\n：{e}")
+            message_array.add_text(f" 执行好像出了点问题，检查一下指令格式喵：\n /gm mute <user_id> [duration] [-u]\n错误信息：\n：{e}")
             await event.reply(rtf=message_array)
             return
         if self_info.role == "admin" and user_info.role == "admin":
@@ -240,11 +252,10 @@ class GroupManager(NcatBotPlugin):
     @param("prefix", default="头衔", help="群成员头衔内容", required=False)
     @option("c", "clear", "清除群成员头衔")  # -c --clear
     @require_subscription
+    @at_check_support
     @require_group_admin(role="owner", reply_message="我不是该群的群主，不能设置成员头衔喵……")
     async def cmd_prefix(self, event: GroupMessageEvent, user_id: str, prefix: str, clear: bool = False):
         """设置群成员头衔"""
-        if user_id.startswith("At"):
-            user_id = user_id.split("=")[1].split('"')[1]
         if clear:
             prefix = ""
         message_array = MessageArray()
@@ -263,8 +274,48 @@ class GroupManager(NcatBotPlugin):
                 message_array.add_at(user_id)
                 message_array.add_text(f" 的头衔喵！")
         except Exception as e:
-            message_array.add_text(f" 执行好像出了点问题喵\n：{e}")
+            message_array.add_text(f" 执行好像出了点问题，检查一下指令格式喵：\n /gm prefix <user_id> [头衔] [-c]\n错误信息：\n：{e}")
         await event.reply(rtf=message_array)
+
+
+    @admin_group_filter
+    @gm_group.command("kick", description="踢出群成员")
+    @param("user_id", help="要踢出的用户ID", required=True)
+    @option("b", "ban", "踢出并禁止再次加入")  # -b --ban
+    @require_subscription
+    @at_check_support
+    async def cmd_kick(self, event: GroupMessageEvent, user_id: str, ban: bool = False):
+        """踢出群成员"""
+        message_array = MessageArray()
+        try:
+            await self.api.set_group_kick(
+                group_id=event.group_id, # type: ignore
+                user_id=user_id,
+                reject_add_request=ban
+            )
+            message_array.add_text(f" 成功踢出 ")
+            message_array.add_at(user_id)
+            message_array.add_text(f" 这个家伙喵！")
+            if ban:
+                message_array.add_text(f" 以后不要再见了喵！")
+        except Exception as e:
+            message_array.add_text(f" 执行好像出了点问题，检查一下指令格式喵：\n /gm kick <user_id> [-b]\n错误信息：\n：{e}")
+        await event.reply(rtf=message_array)
+
+
+    @admin_group_filter
+    @gm_group.command("custom_level", description="设置自定义自动批准QQ等级")
+    @param("level", help="自定义QQ等级", required=False)
+    @option("r", "reset", "重置为全局默认QQ等级")  # -r --reset
+    @require_subscription
+    async def cmd_custom_level(self, event: GroupMessageEvent, level: int = 5, reset: bool = False):
+        """设置自定义自动批准QQ等级"""
+        if reset:
+            self.config["auto_approve"]["custom_qq_level"].pop(event.group_id, None)
+            await event.reply("已将本群组的自定义自动批准QQ等级重置为全局默认值喵。")
+        else:
+            self.config["auto_approve"]["custom_qq_level"][event.group_id] = level
+            await event.reply(f"已将本群组的自定义自动批准QQ等级设置为 {level} 喵。")
 
 
     # ======== 订阅功能 ========

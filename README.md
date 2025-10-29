@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT_License-green.svg)](https://github.com/Sparrived/ncatbot-plugin-group-manager/blob/master/LICENSE)
 [![ncatbot version](https://img.shields.io/badge/ncatbot->=4.2.9-blue.svg)](https://github.com/liyihao1110/ncatbot)
-[![Version](https://img.shields.io/badge/version-1.0.6--post1-orange.svg)](https://github.com/Sparrived/ncatbot-plugin-group-manager/releases)
+[![Version](https://img.shields.io/badge/version-1.0.7-orange.svg)](https://github.com/Sparrived/ncatbot-plugin-group-manager/releases)
 
 
 </div>
@@ -18,8 +18,9 @@
 
 - ✅ **自动欢迎** - 新成员进群自动发送欢迎消息，支持识别邀请人
 - ✅ **离群提醒** - 记录群成员离开或被移除的场景，自动发送提示信息
-- ✅ **智能审核** - 基于 QQ 等级的入群申请自动审核，防止小号进群，支持二次申请手动审核
-- ✅ **禁言管理** - 支持对违规成员进行禁言处理，时长可自定义（1-1440分钟）
+- ✅ **智能审核** - 基于 QQ 等级的入群申请自动审核，防止小号进群，支持二次申请手动审核和分群自定义等级
+- ✅ **禁言管理** - 支持对违规成员进行禁言处理，时长可自定义（1-1440分钟），支持解除禁言
+- ✅ **踢出成员** - 移除违规成员，可选择是否禁止再次加入
 - ✅ **头衔设置** - 为群成员设置或清除专属头衔，彰显身份（需Bot为群主）
 - ✅ **订阅机制** - 通过白名单限制插件作用范围，避免对未关注群组产生影响
 - ✅ **权限检测** - 自动检测Bot权限，避免无权限操作导致的错误
@@ -31,7 +32,8 @@
 | 配置键 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `auto_approve.enabled` | `bool` | `true` | 是否启用自动审核逻辑。 |
-| `auto_approve.min_qq_level` | `int` | `5` | 允许自动通过的最低 QQ 等级。低于此等级的用户会被自动拒绝并加入二次申请列表。 |
+| `auto_approve.min_qq_level` | `int` | `5` | 全局默认的最低 QQ 等级。低于此等级的用户会被自动拒绝并加入二次申请列表。 |
+| `auto_approve.custom_qq_level` | `dict` | `{}` | 分群自定义的最低 QQ 等级，格式为 `{群号: 等级}`，优先级高于全局设置。 |
 | `welcome_message` | `bool` | `true` | 新成员进群时是否发送欢迎语。 |
 | `leave_message` | `bool` | `true` | 成员离群时是否发送提示。 |
 | `subscribed_groups` | `List[str]` | `['123456789']` | 插件生效的群号白名单。只有在此列表中的群组才会处理事件和命令。 |
@@ -41,6 +43,9 @@
 auto_approve:
   enabled: true
   min_qq_level: 5
+  custom_qq_level:
+    '123456789': 10  # 特定群组使用等级10
+    '987654321': 3   # 特定群组使用等级3
 welcome_message: true
 leave_message: true
 subscribed_groups:
@@ -78,19 +83,22 @@ cp -r plugins/group_manager /path/to/your/ncatbot/plugins/
 
 > **注意事项:**
 > - 所有指令仅限 NcatBot 管理员用户使用（`admin_group_filter` 限制）
-> - 机器人需要有群管理员权限才能执行禁言等操作
+> - 机器人需要有群管理员权限才能执行禁言、踢人等操作
 > - 机器人需要有群主权限才能执行头衔设置操作
-> - 支持 @ 用户来指定目标成员（在 `mute` 和 `prefix` 命令中）
+> - 支持 @ 用户来指定目标成员（在 `mute`、`kick` 和 `prefix` 命令中）
 > - 头衔设置仅在机器人为群主时可用，管理员权限无法设置头衔
+> - 自定义等级设置仅对当前群生效，不影响其他群组
 
 | 指令 | 参数 | 说明 | 示例 |
 | --- | --- | --- | --- |
 | `/gm approve <qq号> [-d\|--deny]` | `qq号`：待处理成员 QQ<br>`-d/--deny`：拒绝申请 | 处理待审核的入群申请。不加 `-d` 则通过申请 | `/gm approve 123456789`<br>`/gm approve 123456789 -d` |
-| `/gm mute <qq号\|@用户> [duration]` | `qq号/@用户`：目标成员<br>`duration`：禁言时长（分钟），默认 10，范围 1-1440 | 对指定成员执行禁言操作 | `/gm mute 123456789 30`<br>`/gm mute @某人 60` |
+| `/gm mute <qq号\|@用户> [duration] [-u\|--undo]` | `qq号/@用户`：目标成员<br>`duration`：禁言时长（分钟），默认 10，范围 1-1440<br>`-u/--undo`：解除禁言 | 对指定成员执行禁言操作或解除禁言 | `/gm mute 123456789 30`<br>`/gm mute @某人 60`<br>`/gm mute 123456789 -u` |
+| `/gm kick <qq号\|@用户> [-b\|--ban]` | `qq号/@用户`：目标成员<br>`-b/--ban`：禁止再次加入 | 踢出指定群成员，可选择是否禁止再次加入 | `/gm kick 123456789`<br>`/gm kick @某人 -b` |
 | `/gm prefix <qq号\|@用户> <头衔> [-c\|--clear]` | `qq号/@用户`：目标成员<br>`头衔`：要设置的专属头衔<br>`-c/--clear`：清除头衔 | 为指定成员设置或清除群专属头衔（**仅Bot为群主时可用**） | `/gm prefix 123456789 活跃成员`<br>`/gm prefix @某人 水群之王`<br>`/gm prefix 123456789 -c` |
+| `/gm custom_level [level] [-r\|--reset]` | `level`：自定义等级<br>`-r/--reset`：重置为全局默认 | 为当前群设置自定义的入群审核 QQ 等级 | `/gm custom_level 10`<br>`/gm custom_level -r` |
 | `/gm subscribe` | 无 | 订阅当前群的群管功能，使自动欢迎、自动审核等功能生效 | `/gm subscribe` |
 | `/gm unsubscribe` | 无 | 取消当前群的订阅，插件对该群停止处理 | `/gm unsubscribe` |
-| `/gm help` | 无 | 显示所有可用指令及其说明 | `/gm help` |
+| `/gm help [command]` | `command`：可选，指定命令名 | 显示所有可用指令或指定命令的详细说明 | `/gm help`<br>`/gm help mute` |
 
 
 
@@ -103,12 +111,15 @@ cp -r plugins/group_manager /path/to/your/ncatbot/plugins/
 
 ### 入群审核流程
 1. 接收到入群申请后，插件会调用平台接口获取申请人的 QQ 等级
-2. 如果 QQ 等级低于配置的 `min_qq_level`，则自动拒绝并记录到二次申请列表
-3. 对于二次申请的用户，插件会通知管理员手动审核
-4. 管理员可使用 `/gm approve` 命令手动处理待审申请
+2. 检查当前群是否设置了自定义等级（`custom_qq_level`），如果有则使用自定义等级，否则使用全局默认等级（`min_qq_level`）
+3. 如果 QQ 等级低于配置的等级要求，则自动拒绝并记录到二次申请列表
+4. 对于二次申请的用户，插件会通知管理员手动审核
+5. 管理员可使用 `/gm approve` 命令手动处理待审申请
+6. 管理员可使用 `/gm custom_level` 为不同群组设置不同的等级要求
 
 ### 权限检测机制
 - **禁言功能**: 要求Bot具有管理员或群主权限，且不能对同级管理员或更高权限用户操作
+- **踢人功能**: 要求Bot具有管理员或群主权限
 - **头衔设置**: 要求Bot必须是群主，管理员权限无法设置头衔
 - 执行前会自动检测权限，权限不足时会给出友好提示
 
@@ -137,14 +148,25 @@ grep "GroupManager" logs/bot.log.2025_10_28
 - 查看日志确认是否有错误信息
 
 **Q: 禁言/头衔设置失败？**
-- 确保机器人账号具有群管理员权限（禁言功能）
+- 确保机器人账号具有群管理员权限（禁言、踢人功能）
 - 确保机器人账号具有群主权限（头衔设置功能）
 - 确认目标用户不是群主或其他管理员
 - 管理员之间不能互相禁言
 
+**Q: 踢人功能不可用？**
+- 确保机器人账号具有群管理员或群主权限
+- 确认目标用户权限不高于机器人
+- 检查 API 是否返回错误信息
+
 **Q: 自动审核不工作？**
 - 检查 `auto_approve.enabled` 配置是否为 `true`
 - 确认 `min_qq_level` 设置是否合理
+
+**Q: 如何为不同群组设置不同的审核等级？**
+- 使用 `/gm custom_level <等级>` 命令为当前群设置自定义等级
+- 自定义等级优先级高于全局默认等级
+- 使用 `/gm custom_level -r` 可重置为全局默认
+
 
 ## 🤝 贡献
 
