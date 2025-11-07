@@ -3,9 +3,9 @@ from ncatbot.plugin_system import (
     on_group_increase, 
     on_group_decrease, 
     on_group_request, 
+    admin_group_filter, 
     command_registry, 
     option, 
-    admin_group_filter, 
     param
 )
 from ncatbot.plugin_system.builtin_plugin.unified_registry.command_system.registry.help_system import HelpGenerator
@@ -19,7 +19,7 @@ from .commands import *
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.1.0"
+    version = "1.1.1"
     author = "Sparrived"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
 
@@ -81,7 +81,7 @@ class GroupManager(NcatBotPlugin):
         # 构造消息
         message_array = MessageArray()
         message_array.add_at(user_info.user_id)
-        message_array.add_text(f"有新人加入啦！欢迎你喵！")
+        message_array.add_text(f" 有新人加入啦！欢迎你喵！")
         # 邀请额外添加消息
         if event.sub_type == "invite":
             operator_info = await self.api.get_group_member_info(
@@ -162,7 +162,6 @@ class GroupManager(NcatBotPlugin):
             self.log.info(f"通过了 {user_info['nickname']} 的入群请求。")
 
 
-
     # ======== 注册指令 ========
     gm_group = command_registry.group("gm", "群管理根级命令")
     
@@ -215,7 +214,6 @@ class GroupManager(NcatBotPlugin):
             await event.reply("❌ 禁言时长必须在1分钟到24小时之间喵~")
             return
         await mute.mute_member(api=self.api, event=event, user_id=user_id, duration=duration)
-
 
 
     @admin_group_filter
@@ -321,7 +319,6 @@ class GroupManager(NcatBotPlugin):
             self.config["auto_approve"]["custom_qq_level"][event.group_id] = level
             await event.reply(f"已将本群组的自定义自动批准QQ等级设置为 {level} 喵。")
 
-    
 
     @admin_group_filter
     @gm_group.command("admin", description="设置群管理员（仅限Bot为群主）")
@@ -385,16 +382,17 @@ class GroupManager(NcatBotPlugin):
     @require_subscription
     async def cmd_help(self, event: GroupMessageEvent, command: str = ""):
         """获取群管理帮助信息"""
+        help_message = f"插件版本：{self.version}\n"
         help_generator = HelpGenerator()
         try:
             if not command:
-                help_message = help_generator.generate_group_help(self.gm_group)
+                help_message += help_generator.generate_group_help(self.gm_group)
             else:
                 command_obj = self.gm_group.commands.get(command, None) # type: ignore
                 if not command_obj:
-                    await event.reply("未找到该指令喵，请确认指令名称是否正确喵~")
+                    await event.reply(f"未找到指令 {command} 喵，请确认指令名称是否正确喵~")
                     return
-                help_message = help_generator.generate_command_help(command_obj)
+                help_message += help_generator.generate_command_help(command_obj)
             await event.reply(help_message)
         except Exception as e:
-            await event.reply(f"生成帮助信息时出错喵：\n{e}")
+            await event.reply(f"生成帮助信息时出错了喵：\n{e}")
