@@ -21,7 +21,7 @@ import random
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.3.0"
+    version = "1.3.1"
     author = "Sparrived"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理、群精华消息管理等功能。"
 
@@ -435,22 +435,12 @@ class GroupManager(NcatBotPlugin):
     @require_subscription
     async def cmd_essence_list(self, event: GroupMessageEvent, all: bool = False, page: int = 1):
         """列出群内所有群精华消息，支持分页显示"""
-        essence_messages = await self.api.get_essence_msg_list(event.group_id)
-        if len(essence_messages) == 0:
-            await event.reply("本群暂无群精华消息喵，你们怎么不爆典喵？~")
-            return
-        msg_array = MessageArray()
-        list_count = self.config["essence_list_count"]
-        show_essences = essence_messages if all else essence_messages[(page-1)*list_count:page*list_count]
-        page_count = (len(essence_messages) + list_count - 1) // list_count
-        msg_array.add_text(f" 本群共有 {len(essence_messages)} 条群精华消息，{' 显示全部消息喵~' if all else f' 当前显示第 {page} / {page_count} 页喵~'}")
-        for essence in show_essences:
-            if len(msg_array.messages) != 1:
-                msg_array.add_text("\n" + "="*10 + "\n")            
-            time_array = time.localtime(essence.operator_time)
-            msg_array.add_text(f"\n消息ID: {essence.message_id} | 发送者: {essence.sender_nick}({essence.sender_id}) | 时间: {time.strftime('%Y-%m-%d %H:%M:%S', time_array)}\n内容：\n")
-            msg_array.messages.extend(essence.content.messages)
-        await event.reply(rtf=msg_array)
+        await essence.cmd_essence_list(
+            plugin_instance=self,
+            event=event,
+            all=all,
+            page=page
+        )
 
     @admin_group_filter
     @essence_group.command("add", description="添加群精华消息")
