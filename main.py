@@ -10,18 +10,20 @@ from ncatbot.plugin_system import (
 )
 from ncatbot.plugin_system.builtin_plugin.unified_registry.command_system.registry.help_system import HelpGenerator
 from ncatbot.utils import get_log
-from ncatbot.core import RequestEvent, NoticeEvent, GroupMessageEvent, MessageArray
+from ncatbot.core import RequestEvent, NoticeEvent, GroupMessageEvent, MessageArray, Reply
 from typing import Optional
 from .utils import require_subscription, require_group_admin, at_check_support
 from .commands import *
+import time
+import random
 
 
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.1.1"
+    version = "1.3.0"
     author = "Sparrived"
-    description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理等功能。"
+    description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理、群精华消息管理等功能。"
 
     log = get_log(name)
 
@@ -55,11 +57,18 @@ class GroupManager(NcatBotPlugin):
             "需要订阅的群组列表",
             list
         )
+        self.register_config(
+            "essence_list_count",
+            5,
+            "每次列出多少条精华消息",
+            int
+        )
 
 
     # ======== 初始化插件 ========
     async def on_load(self):
         self._twice_requests = {}
+        self._last_essence_id: dict[str, Optional[str]] = {}
         self.init_config()
         self.log.info("GroupManager插件已加载。")
 
@@ -388,7 +397,7 @@ class GroupManager(NcatBotPlugin):
             if not command:
                 help_message += help_generator.generate_group_help(self.gm_group)
             else:
-                command_obj = self.gm_group.commands.get(command, None) # type: ignore
+                command_obj = self.gm_group.commands.get(command, None)  # type: ignore
                 if not command_obj:
                     await event.reply(f"未找到指令 {command} 喵，请确认指令名称是否正确喵~")
                     return
@@ -396,3 +405,97 @@ class GroupManager(NcatBotPlugin):
             await event.reply(help_message)
         except Exception as e:
             await event.reply(f"生成帮助信息时出错了喵：\n{e}")
+
+
+    # ======== 精华消息管理功能 ========
+    essence_group = gm_group.group("essence", "精华消息命令")
+    
+    @essence_group.command("random", description="随机发送一条群精华消息")
+    @require_subscription
+    async def cmd_essence_random(self, event: GroupMessageEvent):
+        """随机发送一条群精华消息"""
+        essence_messages = await self.api.get_essence_msg_list(event.group_id)
+        if len(essence_messages) == 0:
+            await event.reply("本群暂无群精华消息喵，你们怎么不爆典喵？~")
+            return
+        essence = random.choice(essence_messages)
+        msg_array = MessageArray()
+        time_array = time.localtime(essence.operator_time)
+        msg_array.add_text(f" 我们群伟大的")
+        msg_array.add_at(essence.sender_id)
+        msg_array.add_text(f" 在 {time.strftime('%Y-%m-%d %H:%M:%S', time_array)} 时曾说：\n")
+        msg_array.messages.extend(essence.content.messages)
+        self._last_essence_id[event.group_id] = str(essence.message_id)
+        await event.reply(rtf=msg_array)
+
+    @admin_group_filter
+    @essence_group.command("list", description="列出群内所有群精华消息，支持分页显示")
+    @option("a", "all", help="是否显示所有消息")
+    @param("page", default=1, help="页码", required=False)
+    @require_subscription
+    async def cmd_essence_list(self, event: GroupMessageEvent, all: bool = False, page: int = 1):
+        """列出群内所有群精华消息，支持分页显示"""
+        essence_messages = await self.api.get_essence_msg_list(event.group_id)
+        if len(essence_messages) == 0:
+            await event.reply("本群暂无群精华消息喵，你们怎么不爆典喵？~")
+            return
+        msg_array = MessageArray()
+        list_count = self.config["essence_list_count"]
+        show_essences = essence_messages if all else essence_messages[(page-1)*list_count:page*list_count]
+        page_count = (len(essence_messages) + list_count - 1) // list_count
+        msg_array.add_text(f" 本群共有 {len(essence_messages)} 条群精华消息，{' 显示全部消息喵~' if all else f' 当前显示第 {page} / {page_count} 页喵~'}")
+        for essence in show_essences:
+            if len(msg_array.messages) != 1:
+                msg_array.add_text("\n" + "="*10 + "\n")            
+            time_array = time.localtime(essence.operator_time)
+            msg_array.add_text(f"\n消息ID: {essence.message_id} | 发送者: {essence.sender_nick}({essence.sender_id}) | 时间: {time.strftime('%Y-%m-%d %H:%M:%S', time_array)}\n内容：\n")
+            msg_array.messages.extend(essence.content.messages)
+        await event.reply(rtf=msg_array)
+
+    @admin_group_filter
+    @essence_group.command("add", description="添加群精华消息")
+    @param("mid", help="消息ID", required=False)
+    @require_subscription
+    @require_group_admin(role="admin", reply_message="我不是管理员，不能设置精华消息喵……")
+    async def cmd_essence_add(self, event: GroupMessageEvent, mid: str = ""):
+        """添加群精华消息"""
+        if not mid:
+            reply_msg = event.message.filter(Reply)
+            if reply_msg and len(reply_msg) != 0:
+                mid = reply_msg[0].id
+            else:
+                await event.reply("请提供一个消息ID或者回复你想要添加精华的消息喵~")
+                return
+        elif mid.startswith("Reply("):
+            mid = mid.split("=")[1].split('"')[1]
+        try:
+            await self.api.set_essence_msg(mid)
+            await event.reply(f"成功添加了群精华消息 {mid} 喵~")
+        except Exception as e:
+            await event.reply(f"添加群精华消息失败了喵……\n错误信息：{e}")
+    
+    @admin_group_filter
+    @essence_group.command("remove", description="删除群精华消息")
+    @param("mid", help="消息ID", required=False)
+    @require_subscription
+    @require_group_admin(role="admin", reply_message="我不是管理员，不能删除精华消息喵……")
+    async def cmd_essence_remove(self, event: GroupMessageEvent, mid: str = ""):
+        """删除群精华消息"""
+        if not mid:
+            reply_msg = event.message.filter(Reply)
+            if reply_msg and len(reply_msg) != 0:
+                mid = reply_msg[0].id
+            else:
+                last_mid = self._last_essence_id.get(event.group_id, None)
+                if last_mid:
+                    mid = last_mid
+                else:
+                    await event.reply("请提供一个消息ID或者回复你想要删除精华的消息喵~")
+                    return
+        elif mid.startswith("Reply("):
+            mid = mid.split("=")[1].split('"')[1]
+        try:
+            await self.api.delete_essence_msg(mid)
+            await event.reply(f"成功删除了群精华消息 {mid} 喵~")
+        except Exception as e:
+            await event.reply(f"删除群精华消息失败了喵……\n错误信息：{e}")
