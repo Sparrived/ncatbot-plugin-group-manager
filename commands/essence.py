@@ -24,6 +24,6 @@ async def cmd_essence_list(
     forward_message.attach_text(f" 本群共有 {len(essence_messages)} 条群精华消息，{' 显示全部消息喵~' if all else f' 当前显示第 {page} / {page_count} 页喵~'}")
     for essence in show_essences:
         time_array = time.localtime(essence.operator_time)
-        forward_message.attach_text(f"消息ID: {essence.message_id}\n时间: {time.strftime('%Y-%m-%d %H:%M:%S', time_array)}\n操作者: {essence.operator_nick}({essence.operator_id})\n↓↓↓↓↓ 消息内容 ↓↓↓↓↓\n")
+        forward_message.attach_text(f"🛜消息ID: {essence.message_id}\n🕓时间: {time.strftime('%Y-%m-%d %H:%M:%S', time_array)}\n🔧操作者: {essence.operator_nick}({essence.operator_id})\n↓↓↓ ✨消息内容✨ ↓↓↓")
         forward_message.attach(essence.content, essence.sender_id, essence.sender_nick)
     await plugin_instance.api.post_forward_msg(group_id=event.group_id, msg=forward_message.to_forward())

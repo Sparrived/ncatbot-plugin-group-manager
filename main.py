@@ -21,7 +21,7 @@ import random
 class GroupManager(NcatBotPlugin):
 
     name = "GroupManager"
-    version = "1.3.1"
+    version = "1.3.1-post1"
     author = "Sparrived"
     description = "一个用于管理群组的插件，支持群组成员管理、入群申请处理、群精华消息管理等功能。"
 
